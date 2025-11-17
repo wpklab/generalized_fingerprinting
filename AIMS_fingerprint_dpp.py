@@ -19,7 +19,6 @@ import timm
 
 import matplotlib.pyplot as plt
 import torch
-#import torch.optim as optim
 import torchvision
 from torch import nn
 from torchvision import datasets, transforms
@@ -31,13 +30,10 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import Dataset
 from socket import gethostname
 
-# from S3N import MultiSmoothLoss
-
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 
 from PIL import Image
 
-## Testing out Weights and Biases
 import wandb
 from joblib.externals.loky.backend.context import get_context
 
@@ -49,7 +45,7 @@ import region_fingerprint_faster as ml_models
 from fingerprint_proposal import DPS, TransformerClassifier, FlexibleMLP
 
 from torch.utils.data import DataLoader
-from tqdm import tqdm  # Import tqdm for progress bar
+from tqdm import tqdm
 
 import torch.nn.functional as F
 import torchvision.transforms as T
@@ -570,8 +566,6 @@ def run_model(local_rank, world_size, rank):
         if model_name == 'dinov3_vits16':
             input_dim = 384
         
-        ##Transformer
-        
         transformer = TransformerClassifier(input_dim, num_classes,
                                             n_layer=n_layer,
                                             n_token=(n_token,) * n_layer,
@@ -604,14 +598,12 @@ def run_model(local_rank, world_size, rank):
                 else:  # Linear head
                     head_params.append(param)
             
-            # Create optimizer with parameter groups
             optimizer_ft = optim.Lamb([
-                {'params': backbone_params, 'lr': 1e-5},      # Very low LR for backbone (0.000005)
-                {'params': patch_selector_params, 'lr': 2e-4}, # Medium LR for patch selector (0.0001)
-                {'params': head_params, 'lr': 1e-3}           # Higher LR for transformer head (0.0005)
+                {'params': backbone_params, 'lr': 1e-5},     
+                {'params': patch_selector_params, 'lr': 2e-4},
+                {'params': head_params, 'lr': 1e-3}           
             ], weight_decay=weight_decay)
         else:
-            # Regular optimizer for other models
             optimizer_ft = optim.Lamb(model.parameters(), lr=lr, weight_decay=weight_decay)
         
         
@@ -631,10 +623,9 @@ def run_model(local_rank, world_size, rank):
                 anneal_strategy='cos',
             )
         else:
-            # For models with a single parameter group
             scheduler = OneCycleLR(
                 optimizer_ft,
-                max_lr=lr,  # Single value for single parameter group
+                max_lr=lr,
                 steps_per_epoch=len(dataloaders_dict['train']),
                 epochs=num_epochs,
                 pct_start=0.3,
@@ -643,7 +634,6 @@ def run_model(local_rank, world_size, rank):
                 anneal_strategy='cos'
             )
         
-        ## Weight loss function based on class imbalance
         
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
         if rank == 0:
@@ -715,7 +705,7 @@ if __name__ == '__main__':
     print(f"MASTER_PORT: {os.environ['MASTER_PORT']}", flush=True)
 
     try:
-        if dist.is_initialized(): #Close initialized process group
+        if dist.is_initialized():
             dist.destroy_process_group()
 
         dist.init_process_group(backend="nccl", init_method='env://', rank=rank, world_size=world_size)
